@@ -1,359 +1,88 @@
-# Workflow Registry — Live n8n workflows on http://localhost:5678
-# REQ-ED-003: All n8n workflows cataloged with metadata
-# Used by event-router (PRD 13) for dispatch + health monitoring
+# Workflow Registry — EXAMPLE
+#
+# Catalog of the n8n workflows this router knows about. The router uses it for
+# health tracking: it matches n8n execution records to the `id` values below and
+# compares run recency against `sla_minutes` to decide whether a workflow is
+# healthy, late, or failing.
+#
+# This file is an EXAMPLE. Copy it to your EVENTS_DIR (or point
+# WORKFLOW_REGISTRY_PATH at it) and replace every entry with your own workflows.
+#
+# Getting your real workflow ids:
+#   curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
+#     "$N8N_BASE_URL/api/v1/workflows" | jq -r '.data[] | "\(.id)\t\(.name)"'
+#
+# The `id` MUST match the n8n workflow id exactly, or health tracking silently
+# reports the workflow as never having run.
 
 version: "1.0"
 description: "Catalog of n8n workflows with SLA, schedule, triggers, and dependency metadata"
 
 workflows:
-  # === Memory pipeline (PRD 4 support) ===
-  claude-memory-gateway:
-    id: "MSvaRPMrLFrDQ4jQ"
-    name: "Claude Memory Gateway"
-    description: "Primary gateway for memory operations from Claude Code sessions"
-    schedule: "webhook"
-    triggers: ["memory.gateway"]
-    sla_minutes: 1
-    failure_action: "retry_then_alert"
-    priority: high
-    enabled: true
-
-  agent-output-visual-formatter:
-    id: "JL3TwotMtyHLsGT2"
-    name: "Agent Output Visual Formatter"
-    description: "Formats agent outputs for dashboard display"
+  # --- Webhook-triggered example -------------------------------------------
+  # Fires whenever the router dispatches an event matching one of `triggers`.
+  example-agent-complete-handler:
+    id: "REPLACE_WITH_N8N_WORKFLOW_ID"
+    name: "Example: Agent Complete Handler"
+    description: "Receives agent.complete events and records the result downstream"
     schedule: "webhook"
     triggers: ["agent.complete"]
     sla_minutes: 2
+    failure_action: "retry_then_alert"
     priority: medium
     enabled: true
 
-  session-extraction:
-    id: "session-extraction"
-    name: "Session Transcript Extraction"
+  # --- Failure-path example ------------------------------------------------
+  example-failure-alert:
+    id: "REPLACE_WITH_N8N_WORKFLOW_ID"
+    name: "Example: Failure Alert"
+    description: "Notifies an on-call channel when an agent or gate fails"
+    schedule: "webhook"
+    triggers: ["agent.fail", "governance.violation"]
+    sla_minutes: 1
+    failure_action: "retry_then_alert"
+    priority: high
+    enabled: true
+
+  # --- Scheduled example with dependencies ---------------------------------
+  # `dependencies` is documentation only; the router does not resolve them.
+  example-nightly-rollup:
+    id: "REPLACE_WITH_N8N_WORKFLOW_ID"
+    name: "Example: Nightly Rollup"
+    description: "Aggregates the day's events into a summary record"
+    schedule: "daily 02:00"
+    cron: "0 2 * * *"
+    triggers: ["schedule.nightly_rollup"]
+    inputs: ["date"]
+    outputs: ["rollup_record"]
+    dependencies: ["database"]
+    sla_minutes: 30
+    priority: medium
+    enabled: true
+
+  # --- Session lifecycle example -------------------------------------------
+  example-session-archiver:
+    id: "REPLACE_WITH_N8N_WORKFLOW_ID"
+    name: "Example: Session Archiver"
+    description: "Archives session transcripts when a session ends"
     schedule: "every 2 hours"
     cron: "0 */2 * * *"
-    triggers: ["session.end", "schedule.session_extraction"]
-    inputs: ["session_id", "session_path"]
-    outputs: ["extracted_memories"]
-    dependencies: ["qdrant", "claude-api"]
+    triggers: ["session.end", "schedule.session_archive"]
     sla_minutes: 10
     failure_action: "retry_then_alert"
     priority: high
     enabled: true
 
-  memory-compaction:
-    id: "memory-compaction-wf"
-    name: "Memory Compaction Workflow"
-    schedule: "every 6 hours"
-    cron: "0 */6 * * *"
-    triggers: ["schedule.compaction"]
-    sla_minutes: 30
-    priority: medium
-    enabled: true
-
-  compliance-report:
-    id: "compliance-report"
-    name: "Memory: Compliance Report"
-    schedule: "weekly"
-    triggers: ["schedule.compliance_report"]
-    sla_minutes: 15
-    priority: high
-    enabled: true
-
-  benchmark-regression:
-    id: "benchmark-regression"
-    name: "Memory: Benchmark Regression"
-    schedule: "daily"
-    triggers: ["schedule.benchmark"]
-    sla_minutes: 20
-    priority: medium
-    enabled: true
-
-  active-pruning:
-    id: "active-pruning"
-    name: "Memory: Active Pruning"
-    schedule: "daily 02:00 UTC"
-    cron: "0 2 * * *"
-    triggers: ["schedule.prune"]
-    sla_minutes: 30
-    priority: medium
-    enabled: true
-
-  identity-auto-register:
-    id: "Sid0vWyr7uo0szh9"
-    name: "Memory: Identity Auto-Register"
-    schedule: "weekly Mon 7AM"
-    cron: "0 7 * * 1"
-    triggers: ["schedule.identity_register"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  world-model-sync:
-    id: "HtMxQzE8BK6DgqH2"
-    name: "Memory: World Model Sync"
-    schedule: "daily 5AM"
-    cron: "0 5 * * *"
-    triggers: ["schedule.world_model_sync"]
-    sla_minutes: 15
-    priority: medium
-    enabled: true
-
-  conflict-resolver:
-    id: "JrGtDLSontjqRw2Q"
-    name: "Memory: Daily Conflict Resolver"
-    schedule: "daily 1:30AM"
-    cron: "30 1 * * *"
-    triggers: ["schedule.conflict_check"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  session-recording-sync:
-    id: "OQOV8h3BIO1TB3BC"
-    name: "Memory: Session Recording Sync"
-    schedule: "daily 6AM"
-    cron: "0 6 * * *"
-    triggers: ["schedule.recording_sync"]
-    sla_minutes: 15
-    priority: medium
-    enabled: true
-
-  hierarchical-abstraction:
-    id: "hierarchical-abstraction"
-    name: "Memory: Hierarchical Abstraction"
-    schedule: "weekly"
-    triggers: ["schedule.abstraction"]
-    sla_minutes: 20
-    priority: low
-    enabled: true
-
-  semantic-diff:
-    id: "BUbWz4dhpw7uVtm0"
-    name: "Memory: Semantic Diff"
-    schedule: "weekly Thu 3AM"
-    cron: "0 3 * * 4"
-    triggers: ["schedule.semantic_diff"]
-    sla_minutes: 30
-    priority: low
-    enabled: true
-
-  causal-pattern-extraction:
-    id: "m8sXD2kNbTgon8HZ"
-    name: "Memory: Causal Pattern Extraction"
-    schedule: "daily 5:30AM"
-    cron: "30 5 * * *"
-    triggers: ["schedule.causal_extract"]
-    sla_minutes: 20
-    priority: medium
-    enabled: true
-
-  daily-ttl-sweep:
-    id: "daily-ttl-sweep"
-    name: "Memory TTL Sweep"
-    schedule: "daily 03:00 UTC"
-    cron: "0 3 * * *"
-    triggers: ["schedule.ttl_sweep"]
-    sla_minutes: 5
-    priority: medium
-    enabled: true
-
-  monthly-review:
-    id: "monthly-review"
-    name: "Memory Monthly Review"
-    schedule: "1st of month 09:00 EST"
-    cron: "0 13 1 * *"
-    triggers: ["schedule.monthly_review"]
+  # --- Disabled example ----------------------------------------------------
+  # `enabled: false` keeps the entry documented but excludes it from health
+  # checks, so a workflow you have not built yet does not report as unhealthy.
+  example-weekly-report:
+    id: "REPLACE_WITH_N8N_WORKFLOW_ID"
+    name: "Example: Weekly Report"
+    description: "Emails a weekly summary; not yet built"
+    schedule: "weekly Mon 09:00"
+    cron: "0 9 * * 1"
+    triggers: ["schedule.weekly_report"]
     sla_minutes: 60
-    priority: medium
-    enabled: true
-
-  predictive-patterns:
-    id: "predictive-patterns"
-    name: "Memory: Predictive Pattern Extraction"
-    schedule: "daily"
-    triggers: ["schedule.predictive"]
-    sla_minutes: 25
     priority: low
-    enabled: true
-
-  hippocampal-consolidation:
-    id: "hippocampal-consolidation"
-    name: "Memory: Hippocampal Consolidation"
-    schedule: "every 6 hours"
-    triggers: ["schedule.consolidate", "memory.consolidate"]
-    sla_minutes: 30
-    priority: high
-    enabled: true
-
-  benchmark-auto-record:
-    id: "LQmqaEUygzAwwBjr"
-    name: "Memory: Benchmark Auto-Record"
-    schedule: "weekly Sun 6AM"
-    cron: "0 6 * * 0"
-    triggers: ["schedule.benchmark"]
-    sla_minutes: 15
-    priority: low
-    enabled: true
-
-  skill-discovery:
-    id: "skill-discovery"
-    name: "Memory: Skill Discovery"
-    schedule: "weekly"
-    triggers: ["schedule.skill_discovery"]
-    sla_minutes: 10
-    priority: low
-    enabled: true
-
-  tier-transfer:
-    id: "tier-transfer"
-    name: "Memory: Tier Transfer"
-    schedule: "daily"
-    triggers: ["schedule.tier_transfer"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  permission-review:
-    id: "permission-review"
-    name: "Memory: Permission Review"
-    schedule: "weekly"
-    triggers: ["schedule.permission_review"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  memory-verify-sweep:
-    id: "JuYyz6ZQFmDU9bSc"
-    name: "Memory: Memory Verify Sweep"
-    schedule: "daily 6:30AM"
-    cron: "30 6 * * *"
-    triggers: ["schedule.verify_sweep"]
-    sla_minutes: 20
-    priority: high
-    enabled: true
-
-  red-team-scan:
-    id: "X37gyUxhhNrVQbMb"
-    name: "Memory: Red Team Scan"
-    schedule: "weekly Wed 2AM"
-    cron: "0 2 * * 3"
-    triggers: ["schedule.red_team"]
-    sla_minutes: 60
-    priority: medium
-    enabled: true
-
-  compliance-dashboard:
-    id: "zeDlN7rX80BFqtAu"
-    name: "Memory: Compliance Dashboard"
-    schedule: "weekly Fri 7AM"
-    cron: "0 7 * * 5"
-    triggers: ["schedule.compliance_dash"]
-    sla_minutes: 20
-    priority: high
-    enabled: true
-
-  formal-verify:
-    id: "FPnrJ73PaMs5nrZc"
-    name: "Memory: Formal Verify"
-    schedule: "weekly Sat 4AM"
-    cron: "0 4 * * 6"
-    triggers: ["schedule.formal_verify"]
-    sla_minutes: 30
-    priority: low
-    enabled: true
-
-  stigmergy-auto-reinforce:
-    id: "Jb1dBs3eYDdPEIAc"
-    name: "Memory: Stigmergy Auto-Reinforce"
-    schedule: "daily 4:30AM"
-    cron: "30 4 * * *"
-    triggers: ["schedule.stigmergy_reinforce"]
-    sla_minutes: 10
-    priority: low
-    enabled: true
-
-  self-assessment-report:
-    id: "WI3xHYLpyjwHNfKA"
-    name: "Memory: Self-Assessment Report"
-    schedule: "weekly Tue 6AM"
-    cron: "0 6 * * 2"
-    triggers: ["schedule.self_assess"]
-    sla_minutes: 15
-    priority: medium
-    enabled: true
-
-  organize-clusters:
-    id: "QTn8217tD9lX9lQ5"
-    name: "Memory: Memory Organize Clusters"
-    schedule: "weekly Sun 2:30AM"
-    cron: "30 2 * * 0"
-    triggers: ["schedule.organize"]
-    sla_minutes: 30
-    priority: medium
-    enabled: true
-
-  nhi-lifecycle-tracker:
-    id: "u3bN7WNaaU3UyK5Z"
-    name: "Memory: NHI Lifecycle Tracker"
-    schedule: "weekly Mon 7:30AM"
-    cron: "30 7 * * 1"
-    triggers: ["schedule.nhi_track"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  stigmergy-decay:
-    id: "xK2JH5J8XWDZr78j"
-    name: "Memory: Stigmergy Decay"
-    schedule: "daily 4AM"
-    cron: "0 4 * * *"
-    triggers: ["schedule.stigmergy_decay"]
-    sla_minutes: 10
-    priority: low
-    enabled: true
-
-  contradiction-check:
-    id: "ljCI9AOyUfgbR175"
-    name: "Memory: Contradiction Check"
-    schedule: "daily 1:00AM"
-    cron: "0 1 * * *"
-    triggers: ["schedule.contradiction_check"]
-    sla_minutes: 15
-    priority: medium
-    enabled: true
-
-  # === Added 2026-05-18 — drift sync from n8n ===
-  drm-canary:
-    id: "Lo6lFCmS9Si4lkCL"
-    name: "Memory: DRM Canary"
-    description: "Weekly Drone Recall Memory canary check — validates that an expected memory point can be recalled"
-    schedule: "weekly Mon 3AM"
-    cron: "0 3 * * 1"
-    triggers: ["schedule.drm_canary"]
-    sla_minutes: 5
-    failure_action: "alert"
-    priority: high
-    enabled: true
-
-  hot-rehydration:
-    id: "PHdmEKW5U09vZ9dp"
-    name: "Memory: Hot Rehydration"
-    description: "Weekly hot-tier rehydration — promotes recently-recalled cold memories back to warm"
-    schedule: "weekly Sun 2AM"
-    cron: "0 2 * * 0"
-    triggers: ["schedule.hot_rehydration"]
-    sla_minutes: 10
-    priority: medium
-    enabled: true
-
-  claude-code-notify-telegram:
-    id: "cUp23BLHQGQNDbxI"
-    name: "Claude Code Notify (Telegram)"
-    description: "Webhook that relays Claude Code notifications to Marc's Telegram"
-    schedule: "webhook"
-    triggers: ["telegram.notify"]
-    sla_minutes: 1
-    priority: high
-    enabled: true
+    enabled: false

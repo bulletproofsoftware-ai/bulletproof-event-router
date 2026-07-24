@@ -24,20 +24,24 @@ ROUTER_URL = os.environ.get("EVENT_ROUTER_URL", "http://127.0.0.1:8085/events")
 SOURCE = "claude-code-hook"
 TIMEOUT_SEC = 1.5
 
-# REQ-057: also mark this session as an active agent in agent-economics so
-# /economics/live's active_agents reflects real, live Claude Code sessions
-# instead of only sessions that happen to run through claude-tracked/ask-agent.
+# REQ-057: optionally mark this session as an active agent in agent-economics so
+# /economics/live's active_agents reflects real, live Claude Code sessions.
 # Fire-and-forget, same as the event-router post above — never blocks the hook.
-ECONOMICS_EVENTS_URL = os.environ.get("ECONOMICS_EVENTS_URL", "http://127.0.0.1:8097/economics/events")
-ECONOMICS_TOKEN_PATH = os.environ.get(
-    "ECONOMICS_TOKEN_PATH", os.path.expanduser("~/.claude/state/claude-tracked-token")
-)
+#
+# DISABLED BY DEFAULT: both values are empty unless you set them. Set
+# ECONOMICS_EVENTS_URL to your agent-economics events endpoint and
+# ECONOMICS_TOKEN_PATH to a file containing the bearer token to enable it.
+ECONOMICS_EVENTS_URL = os.environ.get("ECONOMICS_EVENTS_URL", "")
+ECONOMICS_TOKEN_PATH = os.environ.get("ECONOMICS_TOKEN_PATH", "")
 _economics_token_cache: dict = {}
 
 
 def _economics_token() -> str | None:
     if "token" in _economics_token_cache:
         return _economics_token_cache["token"]
+    if not ECONOMICS_TOKEN_PATH:
+        _economics_token_cache["token"] = None
+        return None
     try:
         with open(ECONOMICS_TOKEN_PATH, encoding="utf-8") as f:
             token = f.read().strip() or None
@@ -48,7 +52,7 @@ def _economics_token() -> str | None:
 
 
 def _mark_active(session_id: str, duration_ms: int = 0) -> None:
-    if not session_id:
+    if not session_id or not ECONOMICS_EVENTS_URL:
         return
     token = _economics_token()
     if not token:

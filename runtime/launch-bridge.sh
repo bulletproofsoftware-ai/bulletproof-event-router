@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Wrapper that pulls N8N_API_KEY from the running n8n container env at launchd start,
-# then execs the bridge daemon. Keeps the secret out of plists / config files.
+# Wrapper that pulls N8N_API_KEY from the running n8n container env at start,
+# then execs the bridge daemon. Keeps the secret out of scheduler config files.
+#
+# Downstream mirrors are opt-in: this wrapper deliberately does NOT set
+# DATA_PLANE_DSN or N8N_BASE_URL. Export them yourself to enable those
+# integrations; bridge-daemon.py defaults DATA_PLANE_DSN to empty (mirror
+# disabled) and N8N_BASE_URL to http://localhost:5678.
 set -u
 
 VENV_PY="${VENV_PY:-python3}"
@@ -13,8 +18,6 @@ if command -v docker >/dev/null 2>&1; then
 fi
 
 export N8N_API_KEY
-export N8N_BASE_URL="${N8N_BASE_URL:-http://127.0.0.1:5679}"
-export DATA_PLANE_DSN="${DATA_PLANE_DSN:-host=127.0.0.1 port=5436 user=claude_backend password=${DATA_PLANE_PASSWORD:-} dbname=data_plane}"
 
 # Pull HMAC secret from the docker-compose .env where event-router reads it from
 WORKFLOW_HEALTH_HMAC_SECRET=""

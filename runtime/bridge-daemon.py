@@ -54,7 +54,7 @@ RS_FRESH_WINDOW_SEC = float(os.environ.get("RS_FRESH_WINDOW_SEC", "600"))  # 10 
 
 # n8n workflow health syncer — polls n8n executions, updates event-router workflow_health table.
 N8N_BASE_URL = os.environ.get("N8N_BASE_URL", "http://localhost:5678")
-N8N_API_KEY = os.environ.get("N8N_API_KEY", "")  # injected by launchd plist via docker exec
+N8N_API_KEY = os.environ.get("N8N_API_KEY", "")  # injected by launch-bridge.sh from the n8n container
 N8N_SYNC_INTERVAL_SEC = float(os.environ.get("N8N_SYNC_INTERVAL_SEC", "60"))
 WORKFLOW_REGISTRY_PATH = Path(os.environ.get(
     "WORKFLOW_REGISTRY_PATH",

@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """n8n-health-poller — external health observer for registered n8n workflows.
 
 Reads n8n's execution history via its REST API (which records every execution
@@ -7,22 +7,26 @@ per-workflow health over a 24h window, and pushes each result to Event Router's
 HMAC-authenticated POST /workflows/{name}/health endpoint.
 
 This is the "observe from outside" architecture — no workflow graph is ever
-modified. Spec: ~/Code/event-router/docs/superpowers/specs/
-2026-07-02-n8n-workflow-health-poller-design.md
+modified.
 
-Runs as a World State loop (loop_id: n8n-health-poller) via loop-runner.sh —
-see com.claude.n8n-health-poller.plist. Exit codes:
+Intended to be run on a schedule (cron, systemd timer, launchd, or any job
+runner). Exit codes:
   0  every registry workflow polled AND pushed, OR n8n unreachable and skipped
   1  partial failure (n8n or event-router errors on >=1 workflow)
   2  configuration error (missing env file, secrets, or registry)
 
-n8n on c2 is reached over the NetBird VPN mesh via a localhost tunnel
-(N8N_BASE_URL defaults to http://localhost:5679). When the Mac is off-VPN the
-tunnel is dead and every poll fails at the TCP layer — indistinguishable from
-n8n itself being down. To avoid false "down" alerts, main() runs a cheap
-reachability probe first; if n8n cannot be reached it exits 0 with a "skipped"
-note instead of reporting a failure. Pass --no-skip-unreachable to treat an
-unreachable n8n as a hard failure (exit 1) instead.
+If your n8n instance is reached over a VPN, an SSH tunnel, or any other link
+that can be down independently of n8n itself, a failed poll at the TCP layer is
+indistinguishable from n8n being down. To avoid false "down" alerts, main() runs
+a cheap reachability probe first; if n8n cannot be reached it exits 0 with a
+"skipped" note instead of reporting a failure. Pass --no-skip-unreachable to
+treat an unreachable n8n as a hard failure (exit 1) instead.
+
+Configuration (all optional, environment variables):
+  POLLER_ENV_FILE         path to a KEY=VALUE file holding the secrets below
+  POLLER_REGISTRY         path to workflow-registry.yaml
+  POLLER_N8N_BASE_URL     n8n base URL           (default http://localhost:5678)
+  POLLER_EVENT_ROUTER_URL event-router base URL  (default http://127.0.0.1:8085)
 
 Usage:
   n8n-health-poller.py [--dry-run] [--workflow KEY] [--no-skip-unreachable]
@@ -44,12 +48,13 @@ from pathlib import Path
 
 import yaml
 
-ENV_FILE = Path(os.environ.get("POLLER_ENV_FILE", str(Path.home() / "docker" / "local" / ".env")))
-REGISTRY_PATH = Path(os.environ.get("POLLER_REGISTRY", str(Path.home() / ".claude" / "events" / "workflow-registry.yaml")))
-N8N_BASE_URL = os.environ.get("POLLER_N8N_BASE_URL", "http://localhost:5679")
+_ENV_FILE_SETTING = os.environ.get("POLLER_ENV_FILE", "")
+ENV_FILE = Path(_ENV_FILE_SETTING) if _ENV_FILE_SETTING else None
+REGISTRY_PATH = Path(os.environ.get("POLLER_REGISTRY", "./config/workflow-registry.yaml"))
+N8N_BASE_URL = os.environ.get("POLLER_N8N_BASE_URL", "http://localhost:5678")
 EVENT_ROUTER_URL = os.environ.get("POLLER_EVENT_ROUTER_URL", "http://127.0.0.1:8085")
 HTTP_TIMEOUT_S = 10
-REACHABILITY_TIMEOUT_S = 4  # short probe so an off-VPN run fails fast, not after 10s * N workflows
+REACHABILITY_TIMEOUT_S = 4  # short probe so an unreachable-n8n run fails fast, not after 10s * N workflows
 WINDOW_HOURS = 24
 PAGE_LIMIT = 100
 MAX_PAGES = 5
@@ -79,6 +84,25 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return out
 
 
+def load_config_env(env_file: Path | None) -> dict[str, str]:
+    """Read secrets from the process environment, optionally topped up from a file.
+
+    POLLER_ENV_FILE is unset by default: the normal path is to export
+    N8N_API_KEY and WORKFLOW_HEALTH_HMAC_SECRET into the environment. Setting
+    POLLER_ENV_FILE to a KEY=VALUE file is supported for schedulers that cannot
+    easily inject environment variables. Values already present in the process
+    environment win over the file.
+    """
+    values: dict[str, str] = {}
+    if env_file is not None:
+        values.update(parse_env_file(env_file))
+    for key in ("N8N_API_KEY", "WORKFLOW_HEALTH_HMAC_SECRET"):
+        from_env = os.environ.get(key)
+        if from_env:
+            values[key] = from_env
+    return values
+
+
 def load_registry(path: Path) -> dict[str, dict]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     workflows = data.get("workflows") or {}
@@ -105,7 +129,7 @@ def http_get_json(url: str, headers: dict[str, str]) -> dict:
 def check_reachable(api_key: str) -> tuple[bool, str]:
     """Cheap probe: can we reach n8n's API at all?
 
-    Distinguishes "n8n is down / I'm off-VPN so the tunnel is dead" (TCP-level
+    Distinguishes "n8n is down / the network path to it is dead" (TCP-level
     failure — URLError/OSError/timeout) from "n8n answered". A non-2xx HTTP reply
     still counts as reachable: the tunnel and process are alive even if the
     endpoint is unauthorized or not found, which is a real-workflow problem worth
@@ -227,7 +251,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        env = parse_env_file(ENV_FILE)
+        env = load_config_env(ENV_FILE)
         api_key = env["N8N_API_KEY"]
         secret = env["WORKFLOW_HEALTH_HMAC_SECRET"]
         registry = load_registry(REGISTRY_PATH)
@@ -240,7 +264,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.no_skip_unreachable:
             print(f"n8n unreachable at {N8N_BASE_URL} — {detail}", file=sys.stderr)
             return 1
-        print(f"skipped: n8n unreachable at {N8N_BASE_URL} (VPN down?) — {detail}")
+        print(f"skipped: n8n unreachable at {N8N_BASE_URL} — {detail}")
         return 0
 
     if args.workflow:
