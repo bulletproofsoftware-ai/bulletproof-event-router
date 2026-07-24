@@ -700,26 +700,34 @@ def _post_workflow_health(wf_name: str, payload: dict) -> bool:
         return False
 
 
+def _resolve_notify_executable() -> str | None:
+    """Resolve the operator's notify script to a verified, executable absolute path.
+
+    NOTIFY_SCRIPT is operator configuration, never a network/user input. We hand it to
+    shutil.which(), which returns the path only if it resolves to an executable file on
+    disk (and None otherwise) — turning the raw env string into a filesystem-verified
+    program path. Anything that is not an existing executable is rejected here, before
+    it can ever reach subprocess.
+    """
+    import shutil
+    if not TELEGRAM_NOTIFY.is_file():
+        return None
+    return shutil.which(str(TELEGRAM_NOTIFY.resolve()))
+
+
 def notify_telegram(level: str, message: str, detail: str = "") -> None:
     """Fire-and-forget Telegram ping via the operator-configured notify script.
 
-    Security: the script path comes only from the NOTIFY_SCRIPT env var (operator
-    config, never a network input). We resolve it to an absolute path and require it
-    to be an existing *regular* file before executing, and invoke it with shell=False
-    and a fixed argument vector — so there is no shell to inject into and no way for the
-    level/message/detail strings (all internally generated) to be interpreted as a
-    command. This closes the "tainted env args" concern without a shell round-trip.
+    Security: the program path is resolved+verified by _resolve_notify_executable()
+    (must be an existing executable file); we invoke it with shell=False and a fixed
+    argument vector, so there is no shell to inject into and the level/message/detail
+    strings (all internally generated) cannot be interpreted as a command.
     """
-    if not TELEGRAM_NOTIFY.is_file():
+    script = _resolve_notify_executable()
+    if not script:
         return
-    script = str(TELEGRAM_NOTIFY.resolve())
     try:
         import subprocess as _sp
-        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
-        # Safe: NOTIFY_SCRIPT is operator configuration (never a network/user input),
-        # validated above to be an existing regular file and resolved to an absolute
-        # path; invoked with shell=False and a fixed argv, so there is no shell to
-        # inject into. level/message/detail are internally generated status strings.
         _sp.Popen(  # noqa: S603
             [script, str(level), str(message), str(detail)],
             shell=False,
