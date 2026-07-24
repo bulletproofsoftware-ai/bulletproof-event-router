@@ -1,0 +1,247 @@
+# Event Taxonomy — Standardized event categories for the conductor ecosystem
+# All events use dot-notation naming: category.action[.detail]
+
+version: "1.0"
+description: "10 event categories covering all system events with room for growth"
+
+categories:
+  session:
+    description: "Session lifecycle events"
+    events:
+      session.start:
+        description: "New Claude Code session started"
+        emitter: "SessionStart hook"
+        payload_schema:
+          session_id: { type: "string", required: true }
+          working_directory: { type: "string", required: true }
+          has_active_workflow: { type: "boolean", required: false }
+      session.end:
+        description: "Session ending (Stop hook)"
+        emitter: "Stop hook"
+        payload_schema:
+          session_id: { type: "string", required: true }
+          duration_minutes: { type: "number", required: false }
+          tasks_completed: { type: "integer", required: false }
+      session.compact:
+        description: "Context compaction triggered"
+        emitter: "PreCompact hook"
+        payload_schema:
+          context_usage_pct: { type: "number", required: true }
+
+  memory:
+    description: "Memory system events"
+    events:
+      memory.store:
+        description: "New memory stored in Qdrant"
+        emitter: "memory_store MCP tool"
+        payload_schema:
+          memory_type: { type: "string", required: true }
+          collection: { type: "string", required: true }
+      memory.recall:
+        description: "Memory recalled from Qdrant"
+        emitter: "memory_recall MCP tool"
+        payload_schema:
+          query: { type: "string", required: true }
+          results_count: { type: "integer", required: true }
+      memory.consolidate:
+        description: "Memory consolidation completed"
+        emitter: "n8n consolidation workflow"
+        payload_schema:
+          consolidated_count: { type: "integer", required: true }
+          promoted_count: { type: "integer", required: false }
+
+  agent:
+    description: "Agent dispatch and lifecycle events"
+    events:
+      agent.dispatch:
+        description: "Agent dispatched via Task tool"
+        emitter: "Conductor orchestrator"
+        payload_schema:
+          agent: { type: "string", required: true }
+          task: { type: "string", required: true }
+          phase: { type: "string", required: false }
+          step: { type: "integer", required: false }
+      agent.complete:
+        description: "Agent completed successfully"
+        emitter: "Conductor orchestrator"
+        payload_schema:
+          agent: { type: "string", required: true }
+          duration_ms: { type: "integer", required: true }
+          deliverables: { type: "array", required: false }
+      agent.fail:
+        description: "Agent dispatch failed"
+        emitter: "Conductor orchestrator"
+        payload_schema:
+          agent: { type: "string", required: true }
+          error: { type: "string", required: true }
+          failure_category: { type: "string", required: false }
+
+  governance:
+    description: "Governance framework events"
+    events:
+      governance.violation:
+        description: "Governance policy violated"
+        emitter: "Governance hooks"
+        payload_schema:
+          violation_type: { type: "string", required: true }
+          agent: { type: "string", required: false }
+          severity: { type: "string", required: true }
+      governance.gate_blocked:
+        description: "Quality gate blocked progression"
+        emitter: "Conductor critic"
+        payload_schema:
+          gate: { type: "string", required: true }
+          reason: { type: "string", required: true }
+      governance.audit_event:
+        description: "Audit trail event recorded"
+        emitter: "Governance audit bus"
+        payload_schema:
+          audit_type: { type: "string", required: true }
+
+  security:
+    description: "Security-related events"
+    events:
+      security.threat_detected:
+        description: "Security threat or anomaly detected"
+        emitter: "Runtime security hooks"
+        payload_schema:
+          threat_type: { type: "string", required: true }
+          severity: { type: "string", required: true }
+          source: { type: "string", required: true }
+      security.lockdown:
+        description: "Security lockdown initiated"
+        emitter: "Guardian agent"
+        payload_schema:
+          reason: { type: "string", required: true }
+          scope: { type: "string", required: true }
+
+  infra:
+    description: "Infrastructure events"
+    events:
+      infra.container_restart:
+        description: "Docker container restarted"
+        emitter: "Health monitor"
+        payload_schema:
+          container: { type: "string", required: true }
+          reason: { type: "string", required: false }
+      infra.disk_warning:
+        description: "Disk usage exceeds threshold"
+        emitter: "System monitor"
+        payload_schema:
+          path: { type: "string", required: true }
+          usage_pct: { type: "number", required: true }
+      infra.service_degraded:
+        description: "Service performance degradation detected"
+        emitter: "Health monitor"
+        payload_schema:
+          service: { type: "string", required: true }
+          metric: { type: "string", required: true }
+          value: { type: "number", required: true }
+
+  schedule:
+    description: "Scheduled automation events"
+    events:
+      schedule.daily:
+        description: "Daily scheduled trigger"
+        emitter: "n8n cron"
+        payload_schema:
+          date: { type: "string", required: true }
+      schedule.weekly:
+        description: "Weekly scheduled trigger"
+        emitter: "n8n cron"
+        payload_schema:
+          week: { type: "string", required: true }
+      schedule.monthly:
+        description: "Monthly scheduled trigger"
+        emitter: "n8n cron"
+        payload_schema:
+          month: { type: "string", required: true }
+
+  git:
+    description: "Git operation events"
+    events:
+      git.commit:
+        description: "Git commit created"
+        emitter: "Git hooks or conductor"
+        payload_schema:
+          sha: { type: "string", required: true }
+          message: { type: "string", required: true }
+      git.push:
+        description: "Git push to remote"
+        emitter: "Git hooks"
+        payload_schema:
+          remote: { type: "string", required: true }
+          branch: { type: "string", required: true }
+      git.pr_created:
+        description: "Pull request created"
+        emitter: "gh CLI"
+        payload_schema:
+          pr_number: { type: "integer", required: true }
+          url: { type: "string", required: true }
+
+  external:
+    description: "External system events"
+    events:
+      external.webhook_received:
+        description: "Inbound webhook received"
+        emitter: "Webhook endpoint"
+        payload_schema:
+          source: { type: "string", required: true }
+          event_type: { type: "string", required: true }
+      external.agent_invoked:
+        description: "External caller invoked an agent via gateway"
+        emitter: "Agent gateway (PRD 17)"
+        payload_schema:
+          agent_id: { type: "string", required: true }
+          caller_type: { type: "string", required: true }
+
+  recovery:
+    description: "Self-healing recovery events (PRD 12)"
+    events:
+      recovery.attempt:
+        description: "Recovery strategy initiated"
+        emitter: "Recovery engine"
+        payload_schema:
+          failure_category: { type: "string", required: true }
+          strategy: { type: "string", required: true }
+          attempt: { type: "integer", required: true }
+      recovery.success:
+        description: "Recovery succeeded"
+        emitter: "Recovery engine"
+        payload_schema:
+          strategy: { type: "string", required: true }
+          recovery_time_ms: { type: "integer", required: true }
+      recovery.escalated:
+        description: "Recovery exhausted, escalated to operator"
+        emitter: "Recovery engine"
+        payload_schema:
+          failure_category: { type: "string", required: true }
+          attempts_exhausted: { type: "integer", required: true }
+
+  cost:
+    description: "Cost and metering events"
+    events:
+      cost.recorded:
+        description: "A metered cost event was recorded in Agent Economics"
+        emitter: "agent-economics metering engine"
+        payload_schema:
+          agent_id: { type: "string", required: true }
+          session_id: { type: "string", required: true }
+          project_id: { type: "string", required: true }
+          cost_cents: { type: "integer", required: true }
+          model: { type: "string", required: true }
+          routed_tier: { type: "string", required: true }
+
+# Naming conventions
+naming:
+  pattern: "category.action[.detail]"
+  examples:
+    - "session.start"
+    - "agent.fail"
+    - "governance.gate_blocked"
+    - "recovery.attempt"
+  rules:
+    - "All lowercase"
+    - "Dot-separated hierarchy"
+    - "Max 3 levels deep"
+    - "Action verbs may use present tense for ongoing states or past tense for completed actions."

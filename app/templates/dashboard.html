@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Event Router — Workflow Health</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --surface-2: #232634;
+            --border: #2a2e3d;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --ok: #4ade80;
+            --warn: #fbbf24;
+            --err: #f87171;
+        }
+        * { box-sizing: border-box; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; margin: 0; padding: 24px; }
+        h1 { color: var(--accent); margin: 0 0 4px; font-size: 20px; }
+        .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+        .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+        .ok { color: var(--ok); }
+        .warn { color: var(--warn); }
+        .err { color: var(--err); }
+        table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+        th { background: var(--surface-2); color: var(--muted); font-weight: 500; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+        tr:last-child td { border-bottom: none; }
+        .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .status-ok { background: var(--ok); }
+        .status-warn { background: var(--warn); }
+        .status-err { background: var(--err); }
+        .status-unknown { background: var(--muted); }
+        .section-title { color: var(--accent); font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; margin: 24px 0 12px; }
+        canvas { max-height: 220px; }
+        .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
+        a { color: var(--accent); }
+        code { background: var(--surface-2); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <h1>Event Router</h1>
+    <div class="sub">PRD 13 — workflow health · DLQ · routing audit · <span id="last-updated">Last updated: —</span></div>
+
+    <div class="grid">
+        <div class="card"><div class="label">Events received</div><div class="value" id="m-received">—</div></div>
+        <div class="card"><div class="label">Routed (success)</div><div class="value ok" id="m-routed">—</div></div>
+        <div class="card"><div class="label">DLQ pending</div><div class="value warn" id="m-dlq">—</div></div>
+        <div class="card"><div class="label">P99 latency (ms)</div><div class="value" id="m-p99">—</div></div>
+        <div class="card"><div class="label">WS clients</div><div class="value" id="m-ws">—</div></div>
+        <div class="card"><div class="label">Uptime (s)</div><div class="value" id="m-uptime">—</div></div>
+    </div>
+
+    <div class="row">
+        <div>
+            <div class="section-title">Events per category</div>
+            <div class="card"><canvas id="chart-categories"></canvas></div>
+        </div>
+        <div>
+            <div class="section-title">DLQ status mix</div>
+            <div class="card"><canvas id="chart-dlq"></canvas></div>
+        </div>
+    </div>
+
+    <div class="section-title">Workflow Registry — health</div>
+    <table>
+        <thead><tr><th>Status</th><th>Workflow</th><th>Schedule</th><th>SLA (min)</th><th>Success rate</th><th>SLA breaches 24h</th><th>Last run</th></tr></thead>
+        <tbody id="wf-tbody"><tr><td colspan="7">Loading…</td></tr></tbody>
+    </table>
+
+    <div class="section-title">DLQ — pending replay</div>
+    <table>
+        <thead><tr><th>Event ID</th><th>Category</th><th>Type</th><th>Reason</th><th>Retries</th><th>Status</th></tr></thead>
+        <tbody id="dlq-tbody"><tr><td colspan="6">Loading…</td></tr></tbody>
+    </table>
+
+    <div class="section-title">Recent Events — correlation_id</div>
+    <table>
+        <thead><tr><th>Timestamp</th><th>Category</th><th>Type</th><th>Correlation ID</th><th>Status</th><th>Latency (ms)</th></tr></thead>
+        <tbody id="events-tbody"><tr><td colspan="6">Loading…</td></tr></tbody>
+    </table>
+
+<script>
+const $ = id => document.getElementById(id);
+let chartCat, chartDlq;
+
+function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+}
+
+function makeRow(cells) {
+    const tr = document.createElement('tr');
+    cells.forEach(c => {
+        const td = document.createElement('td');
+        if (c instanceof Node) {
+            td.appendChild(c);
+        } else if (Array.isArray(c)) {
+            c.forEach(child => {
+                if (child instanceof Node) td.appendChild(child);
+                else td.appendChild(document.createTextNode(String(child)));
+            });
+        } else {
+            td.textContent = String(c == null ? '' : c);
+        }
+        tr.appendChild(td);
+    });
+    return tr;
+}
+
+function makeColspanRow(text, cols) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = cols;
+    td.textContent = text;
+    tr.appendChild(td);
+    return tr;
+}
+
+function statusDot(status) {
+    const dot = document.createElement('span');
+    dot.className = 'status-dot ';
+    if (status === 'success' || status === 'ok' || status === 'replayed') dot.className += 'status-ok';
+    else if (status === 'failure' || status === 'exhausted') dot.className += 'status-err';
+    else if (status === 'unknown') dot.className += 'status-unknown';
+    else dot.className += 'status-warn';
+    return dot;
+}
+
+async function refresh() {
+    try {
+        const m = await fetch('/metrics').then(r => r.json());
+        $('m-received').textContent = m.events_received_total;
+        $('m-routed').textContent = m.events_routed_total;
+        $('m-dlq').textContent = m.dlq_pending;
+        $('m-p99').textContent = m.p99_routing_latency_ms;
+        $('m-ws').textContent = m.ws_clients;
+        $('m-uptime').textContent = Math.round(m.uptime_seconds);
+
+        const labels = Object.keys(m.events_per_category);
+        const values = Object.values(m.events_per_category);
+        if (!chartCat) {
+            chartCat = new Chart($('chart-categories'), {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'count', data: values, backgroundColor: '#60a5fa' }] },
+                options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#9ca3af' } }, x: { ticks: { color: '#9ca3af' } } } }
+            });
+        } else { chartCat.data.labels = labels; chartCat.data.datasets[0].data = values; chartCat.update(); }
+
+        const wf = await fetch('/workflows').then(r => r.json());
+        const tb = $('wf-tbody');
+        clearChildren(tb);
+        if (!wf.workflows.length) {
+            tb.appendChild(makeColspanRow('No workflows registered', 7));
+        } else {
+            wf.workflows.forEach(w => {
+                const dot = statusDot(w.last_status);
+                const statusCell = document.createElement('span');
+                statusCell.appendChild(dot);
+                statusCell.appendChild(document.createTextNode(w.last_status || 'unknown'));
+                tb.appendChild(makeRow([
+                    statusCell,
+                    w.workflow_name,
+                    w.schedule || '—',
+                    w.sla_minutes != null ? w.sla_minutes : '—',
+                    (w.success_rate_pct != null ? w.success_rate_pct + '%' : '—'),
+                    w.sla_breaches_24h != null ? w.sla_breaches_24h : 0,
+                    w.last_run_timestamp || '—',
+                ]));
+            });
+        }
+
+        const dlq = await fetch('/dlq?limit=25').then(r => r.json());
+        const dt = $('dlq-tbody');
+        clearChildren(dt);
+        if (!dlq.entries.length) {
+            dt.appendChild(makeColspanRow('DLQ empty', 6));
+        } else {
+            dlq.entries.forEach(e => {
+                const eid = document.createElement('code');
+                eid.textContent = (e.event_id || '').slice(0, 12) + '…';
+                const reason = (e.failure_reason || '').slice(0, 60);
+                dt.appendChild(makeRow([eid, e.event_category, e.event_type, reason, e.retry_count, e.status]));
+            });
+        }
+
+        const ev = await fetch('/events?limit=25').then(r => r.json());
+        const et = $('events-tbody');
+        clearChildren(et);
+        if (!ev.events.length) {
+            et.appendChild(makeColspanRow('No events yet', 6));
+        } else {
+            ev.events.forEach(e => {
+                const cid = document.createElement('code');
+                cid.textContent = e.correlation_id || '—';
+                cid.title = 'Click to copy — use this to cross-reference Metrics Engine and Agent Economics';
+                cid.style.cursor = e.correlation_id ? 'pointer' : 'default';
+                if (e.correlation_id) {
+                    cid.onclick = () => navigator.clipboard.writeText(e.correlation_id);
+                }
+                let statuses = [];
+                try { statuses = JSON.parse(e.delivery_status || '[]'); } catch (_) {}
+                const statusCell = document.createElement('span');
+                statusCell.appendChild(statusDot(statuses.includes('ok') ? 'ok' : (statuses.length ? 'failure' : 'unknown')));
+                statusCell.appendChild(document.createTextNode(statuses.join(', ') || '—'));
+                et.appendChild(makeRow([
+                    (e.timestamp || '').replace('T', ' ').slice(0, 19),
+                    e.category,
+                    e.type,
+                    cid,
+                    statusCell,
+                    e.routing_latency_ms != null ? e.routing_latency_ms.toFixed(2) : '—',
+                ]));
+            });
+        }
+
+        const statusCounts = dlq.entries.reduce((a, e) => { a[e.status] = (a[e.status] || 0) + 1; return a; }, {});
+        const sLabels = Object.keys(statusCounts);
+        const sValues = Object.values(statusCounts);
+        if (sLabels.length) {
+            if (!chartDlq) {
+                chartDlq = new Chart($('chart-dlq'), {
+                    type: 'doughnut',
+                    data: { labels: sLabels, datasets: [{ data: sValues, backgroundColor: ['#fbbf24', '#f87171', '#4ade80', '#9ca3af'] }] },
+                    options: { plugins: { legend: { labels: { color: '#e5e7eb' } } } }
+                });
+            } else { chartDlq.data.labels = sLabels; chartDlq.data.datasets[0].data = sValues; chartDlq.update(); }
+        }
+
+        $('last-updated').textContent = 'Last updated: ' + new Date().toLocaleString();
+    } catch (e) { console.error(e); }
+}
+refresh();
+setInterval(refresh, 5000);
+
+const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+ws.onmessage = ev => { refresh(); };
+ws.onclose = () => setTimeout(() => location.reload(), 5000);
+</script>
+</body>
+</html>

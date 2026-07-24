@@ -1,0 +1,257 @@
+# Event Routes — YAML routing rules mapping events to handlers
+# Used by conductor-event-router for event dispatch
+# Fan-out: single event can trigger multiple handlers
+
+version: "1.0"
+description: "Event routing rules mapping system events to n8n webhooks, state updates, and direct actions"
+
+# SECURITY: All payload values MUST be sanitized before template interpolation.
+# The template renderer HTML-escapes payload content by default.
+global:
+  default_retry_count: 3
+  default_retry_backoff_ms: 2000
+  rate_limit_per_category_per_second: 100
+  dead_letter_retention_days: 30
+  sla_max_ms: 200
+  async_threshold_ms: 50  # Handlers with predicted latency >50ms execute asynchronously
+
+routes:
+  # Session events
+  - event: "session.start"
+    handlers:
+      - type: direct
+        action: log_event
+        level: info
+      - type: conductor
+        action: update_session_tracking
+        field: "event_routing.last_event"
+
+  - event: "session.end"
+    handlers:
+      - type: webhook
+        target: "session-extraction"
+        url_env: "N8N_WEBHOOK_SESSION_EXTRACTION"
+        auth_method: hmac_sha256
+        auth_secret_env: N8N_WEBHOOK_SECRET
+        delay_seconds: 7200
+        dedup_key: session_id
+        description: "Extract session memories after 2h cooldown"
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "session.compact"
+    handlers:
+      - type: direct
+        action: log_event
+        level: warning
+        message: "Context compaction triggered at {payload.context_usage_pct}%"
+
+  # Agent events
+  - event: "agent.dispatch"
+    handlers:
+      - type: conductor
+        action: increment_counter
+        field: "event_routing.events_emitted"
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "agent.complete"
+    handlers:
+      - type: conductor
+        action: update_outcome_metrics
+        description: "Feed completion data to outcome measurement (PRD 15)"
+      - type: webhook
+        target: agent-output-visual-formatter
+        url: "http://n8n:5678/webhook/agent-visual-format"
+        description: "Format agent output for dashboard display"
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "agent.fail"
+    handlers:
+      # NOTE: failure-analysis n8n workflow does not exist; webhook handler removed
+      # 2026-05-18 to stop DLQ noise. Restore + create workflow if dedicated triage needed.
+      - type: conductor
+        action: increment_failure_count
+        field: "event_routing.events_failed"
+      - type: direct
+        action: log_event
+        level: error
+
+  # Governance events
+  - event: "governance.violation"
+    handlers:
+      # NOTE: governance-alert n8n workflow does not exist; webhook handler removed
+      # 2026-05-18 to stop DLQ noise. The notify_operator direct action still fires.
+      - type: direct
+        action: notify_operator
+        message: "Governance violation: {payload.violation_type} — severity: {payload.severity}"
+
+  - event: "governance.gate_blocked"
+    handlers:
+      - type: direct
+        action: log_event
+        level: warning
+        message: "Gate {payload.gate} blocked: {payload.reason}"
+
+  # Security events
+  - event: "security.threat_detected"
+    handlers:
+      # NOTE: security-alert n8n workflow does not exist; webhook handler removed
+      # 2026-05-18 to stop DLQ noise. The notify_operator direct action still fires.
+      - type: direct
+        action: notify_operator
+        message: "SECURITY: {payload.threat_type} detected from {payload.source}"
+
+  - event: "security.lockdown"
+    handlers:
+      - type: direct
+        action: notify_operator
+        priority: critical
+        message: "LOCKDOWN: {payload.reason} — scope: {payload.scope}"
+
+  # Infrastructure events
+  - event: "infra.container_restart"
+    handlers:
+      - type: direct
+        action: log_event
+        level: warning
+      - type: conductor
+        action: update_health_status
+        field: "recovery.health_status"
+
+  - event: "infra.service_degraded"
+    handlers:
+      - type: conductor
+        action: update_health_status
+        field: "recovery.health_status"
+      - type: direct
+        action: log_event
+        level: warning
+
+  # Recovery events (PRD 12)
+  - event: "recovery.attempt"
+    handlers:
+      - type: conductor
+        action: append_recovery_history
+        field: "recovery.recovery_history"
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "recovery.success"
+    handlers:
+      - type: conductor
+        action: update_mttr
+        field: "recovery.mttr"
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "recovery.escalated"
+    handlers:
+      - type: direct
+        action: notify_operator
+        priority: high
+        message: "Recovery escalated: {payload.failure_category} after {payload.attempts_exhausted} attempts"
+
+  # Git events
+  - event: "git.commit"
+    handlers:
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "git.pr_created"
+    handlers:
+      - type: direct
+        action: log_event
+        level: info
+
+  # External events (PRD 17)
+  - event: "external.agent_invoked"
+    handlers:
+      - type: conductor
+        action: increment_counter
+        field: "agent_gateway.total_external_invocations"
+      - type: direct
+        action: log_event
+        level: info
+
+  # Cost events
+  # CISO F-2 (data sensitivity): cost.recorded MUST remain direct/log_event only.
+  #   Its payload (cost_cents, project_id, agent_id) is business-sensitive — it reveals
+  #   per-project spend. A webhook handler would persist the full payload into the DLQ on
+  #   failure and forward it to external targets. Do NOT add a webhook handler without a
+  #   data-handling review.
+  # CISO F-8 (trust boundary): Event Router's POST /events is unauthenticated. This is the
+  #   first integration sending business-financial data through it and relies on Event Router
+  #   being reachable ONLY within the localhost trust domain. If integrity is ever required,
+  #   extend the existing _verify_hmac pattern to /events (out of scope here).
+  - event: "cost.recorded"
+    handlers:
+      - type: direct
+        action: log_event
+        level: info
+
+# Wildcard routes (match any event in category)
+wildcard_routes:
+  - event: "schedule.*"
+    handlers:
+      - type: direct
+        action: log_event
+        level: info
+
+  - event: "memory.*"
+    handlers:
+      - type: direct
+        action: log_event
+        level: debug
+
+  - event: "infra.*"
+    handlers:
+      - type: direct
+        action: log_and_alert
+        level: warning
+
+  - event: "governance.*"
+    handlers:
+      - type: direct
+        action: audit_trail
+        level: info
+
+  - event: "git.*"
+    handlers:
+      - type: direct
+        action: log
+        level: info
+
+  - event: "external.*"
+    handlers:
+      - type: direct
+        action: log_and_route
+        level: info
+
+# Dead letter queue configuration
+dead_letter:
+  storage: "sqlite"
+  db_path: "${CLAUDE_PLUGIN_ROOT}/data/dead-letter.sqlite"
+  table: "dead_letter_events"
+  schema:
+    id: "INTEGER PRIMARY KEY AUTOINCREMENT"
+    event_type: "TEXT NOT NULL"
+    event_payload: "TEXT NOT NULL"
+    failed_handler: "TEXT NOT NULL"
+    error_message: "TEXT"
+    retry_count: "INTEGER DEFAULT 0"
+    created_at: "TEXT NOT NULL"
+    last_retry_at: "TEXT"
+    status: "TEXT DEFAULT 'pending'"
+  max_payload_size_bytes: 65536
+  max_db_size_mb: 100
+  retention_days: 30
+  archive_format: "jsonl"
+  archive_path: "${CLAUDE_PLUGIN_ROOT}/data/archives/"
