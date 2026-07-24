@@ -8,7 +8,9 @@ set -u
 ROUTER="${EVENT_ROUTER_URL:-http://127.0.0.1:8085/events}"
 CATEGORY="${1:-}"
 TYPE="${2:-}"
-PAYLOAD="${3:-{}}"
+# Note: ${3:-{}} mis-parses in bash (yields an extra brace); default explicitly.
+PAYLOAD="${3:-}"
+[ -z "$PAYLOAD" ] && PAYLOAD='{}'
 CORR="${4:-${CLAUDE_CORRELATION_ID:-}}"
 SOURCE="${EVENT_SOURCE:-claude-code}"
 TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
