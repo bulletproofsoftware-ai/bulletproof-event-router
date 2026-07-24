@@ -1,0 +1,18 @@
+# event-router + optional bridge. Downstream mirrors are off unless configured in .env.
+services:
+  event-router:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      EVENTS_DIR: /config
+    volumes:
+      - ./config.example:/config:ro
+      - ./data:/app/data
+    ports:
+      - "${EVENT_ROUTER_PORT:-8085}:8085"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8085/health').read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

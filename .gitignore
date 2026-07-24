@@ -1,9 +1,8 @@
+.env
 __pycache__/
 *.pyc
-.pytest_cache/
+venv/
 .venv/
-*.sqlite
-*.sqlite-wal
-*.sqlite-shm
-.env
-.conductor-cache/
+data/*.sqlite
+data/*.json
+!data/.gitkeep
