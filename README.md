@@ -2,6 +2,12 @@
 
 **A central event dispatcher: receive events, match routing rules, fan out to n8n / state / actions.**
 
+![bulletproof-event-router — overview](docs/media/infographic.png)
+
+> 📺 **Media:** a generated slide deck, explainer video, and briefing document live in
+> [`media/`](media/). Full documentation is in [`docs/`](docs/) (start with
+> [OVERVIEW](docs/OVERVIEW.md)).
+
 `bulletproof-event-router` is a FastAPI service that gives a multi-agent system a single
 place to emit events and have them routed. It validates events against a taxonomy,
 matches them against glob-pattern routing rules, and dispatches to three consumer types
