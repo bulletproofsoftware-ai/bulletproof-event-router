@@ -715,7 +715,12 @@ def notify_telegram(level: str, message: str, detail: str = "") -> None:
     script = str(TELEGRAM_NOTIFY.resolve())
     try:
         import subprocess as _sp
-        _sp.Popen(  # noqa: S603 — shell=False, fixed argv, operator-set regular-file path
+        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
+        # Safe: NOTIFY_SCRIPT is operator configuration (never a network/user input),
+        # validated above to be an existing regular file and resolved to an absolute
+        # path; invoked with shell=False and a fixed argv, so there is no shell to
+        # inject into. level/message/detail are internally generated status strings.
+        _sp.Popen(  # noqa: S603
             [script, str(level), str(message), str(detail)],
             shell=False,
             stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, close_fds=True,
