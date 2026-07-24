@@ -15,15 +15,22 @@ TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 [ -z "$CATEGORY" ] || [ -z "$TYPE" ] && exit 0
 
-BODY=$(jq -cn \
-  --arg category "$CATEGORY" \
-  --arg type "$TYPE" \
-  --argjson payload "$PAYLOAD" \
-  --arg source "$SOURCE" \
-  --arg timestamp "$TS" \
-  --arg corr "$CORR" \
-  '{category:$category, type:$type, payload:$payload, source:$source, timestamp:$timestamp}
-   + (if $corr == "" then {} else {correlation_id:$corr} end)')
+if command -v jq >/dev/null 2>&1; then
+  BODY=$(jq -cn \
+    --arg category "$CATEGORY" \
+    --arg type "$TYPE" \
+    --argjson payload "$PAYLOAD" \
+    --arg source "$SOURCE" \
+    --arg timestamp "$TS" \
+    --arg corr "$CORR" \
+    '{category:$category, type:$type, payload:$payload, source:$source, timestamp:$timestamp}
+     + (if $corr == "" then {} else {correlation_id:$corr} end)')
+else
+  # jq not installed — assemble minimal JSON. PAYLOAD must already be valid JSON.
+  CORR_FIELD=""
+  [ -n "$CORR" ] && CORR_FIELD=",\"correlation_id\":\"$CORR\""
+  BODY="{\"category\":\"$CATEGORY\",\"type\":\"$TYPE\",\"payload\":$PAYLOAD,\"source\":\"$SOURCE\",\"timestamp\":\"$TS\"$CORR_FIELD}"
+fi
 
 curl -s -o /dev/null -m 2 -X POST "$ROUTER" \
   -H 'Content-Type: application/json' \

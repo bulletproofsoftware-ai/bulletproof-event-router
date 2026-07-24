@@ -55,13 +55,16 @@ docker build -t bulletproof-event-router .
 docker run -p 8085:8085 -e EVENTS_DIR=/config -v $PWD/config.example:/config bulletproof-event-router
 ```
 
-Emit an event:
+Emit an event. Every event needs `category`, `type`, `source`, and a `payload`
+(the `category` must be a taxonomy key with no dots):
 
 ```bash
 curl -X POST http://localhost:8085/events \
   -H 'Content-Type: application/json' \
-  -d '{"event":"session.start","payload":{"session_id":"abc"}}'
+  -d '{"category":"session","type":"start","source":"my-app","payload":{"session_id":"abc"}}'
 ```
+
+A routed event returns `{"status":"routed","matched_rules":[...],"consumers_targeted":N,...}`.
 
 ## Environment
 
