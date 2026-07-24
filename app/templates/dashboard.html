@@ -239,7 +239,10 @@ async function refresh() {
 refresh();
 setInterval(refresh, 5000);
 
-const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
+// Same-origin socket: use wss on TLS pages, ws only when the page itself is plain HTTP.
+// Scheme is derived from the page protocol so it upgrades automatically behind HTTPS.
+const wsScheme = location.protocol.replace('http', 'ws');  // 'https:' -> 'wss:', 'http:' -> 'ws:'
+const ws = new WebSocket(wsScheme + '//' + location.host + '/ws');
 ws.onmessage = ev => { refresh(); };
 ws.onclose = () => setTimeout(() => location.reload(), 5000);
 </script>

@@ -7,6 +7,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app /app/app
 
+# Run as a non-root user (CIS-DI-0001 / opengrep missing-user).
+# Pre-create the writable mount points and hand them to the unprivileged user so the
+# app can create the SQLite DLQ and data files without root.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p /events /app/data \
+    && chown -R appuser:appuser /events /app/data /app
+USER appuser
+
 EXPOSE 8085
 
 ENV EVENTS_DIR=/events \

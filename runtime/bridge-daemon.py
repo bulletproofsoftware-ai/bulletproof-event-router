@@ -701,13 +701,23 @@ def _post_workflow_health(wf_name: str, payload: dict) -> bool:
 
 
 def notify_telegram(level: str, message: str, detail: str = "") -> None:
-    """Fire-and-forget Telegram ping via the existing notify-telegram.sh script."""
-    if not TELEGRAM_NOTIFY.exists():
+    """Fire-and-forget Telegram ping via the operator-configured notify script.
+
+    Security: the script path comes only from the NOTIFY_SCRIPT env var (operator
+    config, never a network input). We resolve it to an absolute path and require it
+    to be an existing *regular* file before executing, and invoke it with shell=False
+    and a fixed argument vector — so there is no shell to inject into and no way for the
+    level/message/detail strings (all internally generated) to be interpreted as a
+    command. This closes the "tainted env args" concern without a shell round-trip.
+    """
+    if not TELEGRAM_NOTIFY.is_file():
         return
+    script = str(TELEGRAM_NOTIFY.resolve())
     try:
         import subprocess as _sp
-        _sp.Popen(
-            [str(TELEGRAM_NOTIFY), level, message, detail],
+        _sp.Popen(  # noqa: S603 — shell=False, fixed argv, operator-set regular-file path
+            [script, str(level), str(message), str(detail)],
+            shell=False,
             stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, close_fds=True,
         )
     except OSError:
