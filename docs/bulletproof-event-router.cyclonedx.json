@@ -1,0 +1,451 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:2b5c1e9a-be40-4a7c-9f3d-e0e0e0000001",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-07-24T19:47:22.353851+00:00",
+    "tools": [
+      {
+        "vendor": "bulletproofsoftware-ai",
+        "name": "sbom-resolver",
+        "version": "1.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "bulletproof-event-router",
+      "version": "1.0.0",
+      "purl": "pkg:github/bulletproofsoftware-ai/bulletproof-event-router",
+      "licenses": [
+        {
+          "expression": "Apache-2.0"
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "annotated_types",
+      "version": "0.8.0",
+      "purl": "pkg:pypi/annotated-types@0.8.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "anyio",
+      "version": "4.14.2",
+      "purl": "pkg:pypi/anyio@4.14.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "certifi",
+      "version": "2026.7.22",
+      "purl": "pkg:pypi/certifi@2026.7.22",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MPL-2.0"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "click",
+      "version": "8.4.2",
+      "purl": "pkg:pypi/click@8.4.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "fastapi",
+      "version": "0.115.6",
+      "purl": "pkg:pypi/fastapi@0.115.6",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "h11",
+      "version": "0.16.0",
+      "purl": "pkg:pypi/h11@0.16.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpcore",
+      "version": "1.0.9",
+      "purl": "pkg:pypi/httpcore@1.0.9",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httptools",
+      "version": "0.8.0",
+      "purl": "pkg:pypi/httptools@0.8.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "MIT"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "httpx",
+      "version": "0.28.1",
+      "purl": "pkg:pypi/httpx@0.28.1",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "idna",
+      "version": "3.18",
+      "purl": "pkg:pypi/idna@3.18",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "jinja2",
+      "version": "3.1.6",
+      "purl": "pkg:pypi/jinja2@3.1.6",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "markupsafe",
+      "version": "3.0.3",
+      "purl": "pkg:pypi/markupsafe@3.0.3",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic",
+      "version": "2.10.4",
+      "purl": "pkg:pypi/pydantic@2.10.4",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "pydantic_core",
+      "version": "2.27.2",
+      "purl": "pkg:pypi/pydantic-core@2.27.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "python_dotenv",
+      "version": "1.2.2",
+      "purl": "pkg:pypi/python-dotenv@1.2.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "PyYAML",
+      "version": "6.0.2",
+      "purl": "pkg:pypi/pyyaml@6.0.2",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "starlette",
+      "version": "0.41.3",
+      "purl": "pkg:pypi/starlette@0.41.3",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "PSF-2.0"
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvicorn",
+      "version": "0.34.0",
+      "purl": "pkg:pypi/uvicorn@0.34.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "direct"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "uvloop",
+      "version": "0.22.1",
+      "purl": "pkg:pypi/uvloop@0.22.1",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "watchfiles",
+      "version": "1.2.0",
+      "purl": "pkg:pypi/watchfiles@1.2.0",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "websockets",
+      "version": "16.1.1",
+      "purl": "pkg:pypi/websockets@16.1.1",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "cdx:dependency-type",
+          "value": "transitive"
+        }
+      ],
+      "licenses": [
+        {
+          "expression": "BSD-3-Clause"
+        }
+      ]
+    }
+  ]
+}
