@@ -718,6 +718,42 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Event Router", version="1.0.0", lifespan=lifespan)
 
+# Strong references to in-flight background routing tasks. Without this the
+# event loop may garbage-collect a task that nothing else holds, which drops
+# the event just as surely as cancelling it did.
+_INFLIGHT: set[asyncio.Task] = set()
+
+# Shared-secret gate.
+#
+# Every route below was reachable unauthenticated: anyone able to reach the
+# port could inject arbitrary events into the routing fabric or subscribe to
+# the live event stream and read everything flowing through it.
+#
+# Send the token as `Authorization: Bearer <token>` or `X-Router-Token`.
+# Unset token => the service refuses everything (fail closed).
+EVENT_ROUTER_TOKEN = os.environ.get("EVENT_ROUTER_TOKEN", "")
+_PUBLIC_PATHS = {"/health", "/healthz", "/readyz", "/metrics"}
+
+
+def _token_ok(presented: str) -> bool:
+    return bool(presented) and _hmac.compare_digest(presented, EVENT_ROUTER_TOKEN)
+
+
+@app.middleware("http")
+async def require_router_token(request: Request, call_next):
+    if request.url.path in _PUBLIC_PATHS or request.url.path.startswith("/static/"):
+        return await call_next(request)
+    if not EVENT_ROUTER_TOKEN:
+        return JSONResponse(
+            {"detail": "EVENT_ROUTER_TOKEN is not set; the router refuses requests until it is configured."},
+            status_code=503,
+        )
+    header = request.headers.get("authorization", "")
+    presented = (header[7:] if header.lower().startswith("bearer ") else "") or request.headers.get("x-router-token", "")
+    if not _token_ok(presented):
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
+
 # Static + templates
 STATIC_DIR = Path(__file__).parent / "static"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -754,14 +790,21 @@ def _dlq_pending_count() -> int:
 @app.post("/events")
 async def emit_event(event: IncomingEvent) -> JSONResponse:
     """Fire-and-forget event emission. Returns immediately after queueing for routing."""
-    # Schedule routing as background task (REQ-ED-005)
+    # Schedule routing as a background task (REQ-ED-005).
+    #
+    # asyncio.wait_for CANCELS the task it is waiting on when the timeout
+    # fires, so any routing that took longer than 50ms was destroyed while
+    # this endpoint returned 202 "queued" — the event was silently dropped.
+    # asyncio.shield keeps the task running past the timeout, and a strong
+    # reference prevents the loop from garbage-collecting it mid-flight.
     task = asyncio.create_task(route_event(event))
-    # Wait briefly to capture event_id
+    _INFLIGHT.add(task)
+    task.add_done_callback(_INFLIGHT.discard)
     try:
-        result = await asyncio.wait_for(task, timeout=0.05)
+        result = await asyncio.wait_for(asyncio.shield(task), timeout=0.05)
         return JSONResponse(result, status_code=202)
     except asyncio.TimeoutError:
-        # True fire-and-forget
+        # Still routing — genuinely fire-and-forget now, not cancelled.
         return JSONResponse({"status": "queued"}, status_code=202)
 
 
@@ -967,6 +1010,21 @@ async def metrics() -> dict[str, Any]:
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket) -> None:
+    # HTTP middleware does not run for websocket handshakes, so the token is
+    # checked here. Without it, anyone reaching the port could subscribe to
+    # the live stream and read every event flowing through the router.
+    if not EVENT_ROUTER_TOKEN:
+        await ws.close(code=1011, reason="EVENT_ROUTER_TOKEN not configured")
+        return
+    presented = (
+        ws.headers.get("x-router-token")
+        or (ws.headers.get("authorization", "")[7:]
+            if ws.headers.get("authorization", "").lower().startswith("bearer ") else "")
+        or ws.query_params.get("token", "")
+    )
+    if not _token_ok(presented):
+        await ws.close(code=1008, reason="Unauthorized")
+        return
     await ws.accept()
     _state["ws_clients"].add(ws)
     try:
