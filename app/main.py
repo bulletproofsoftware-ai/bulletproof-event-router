@@ -41,6 +41,20 @@ from pydantic import BaseModel, Field, field_validator
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("event-router")
 
+
+def _lg(value: object, limit: int = 200) -> str:
+    """Render an untrusted value safe for a single log line.
+
+    Event categories, types and correlation ids arrive from callers. Written to
+    the log verbatim, a value containing CR/LF can forge additional log entries,
+    and control characters can corrupt a terminal reading the log
+    (CodeQL py/log-injection).
+    """
+    text = str(value)
+    text = text.replace("\r", "\\r").replace("\n", "\\n")
+    text = "".join(ch if ch.isprintable() else "\\x%02x" % ord(ch) for ch in text)
+    return text[:limit] + ("…" if len(text) > limit else "")
+
 # --- Config paths (env-overridable) ---
 EVENTS_DIR = Path(os.environ.get("EVENTS_DIR", str(Path.home() / ".claude" / "events")))
 TAXONOMY_PATH = EVENTS_DIR / "taxonomy.yaml"
@@ -229,7 +243,7 @@ def validate_event(category: str, event_type: str) -> tuple[bool, str]:
     taxonomy = _state.get("taxonomy", {}).get("categories", {})
     if not taxonomy:
         # If no taxonomy loaded, fail open with warning — but log
-        log.warning("No taxonomy loaded — accepting event %s.%s without validation", category, event_type)
+        log.warning("No taxonomy loaded — accepting event %s.%s without validation", _lg(category), _lg(event_type))
         return True, "no taxonomy loaded"
     cat_def = taxonomy.get(category)
     if cat_def is None:
@@ -238,7 +252,7 @@ def validate_event(category: str, event_type: str) -> tuple[bool, str]:
     full_type = f"{category}.{event_type}"
     if full_type not in events and event_type not in events:
         # Allow new event types within known category (extensible per PRD spec note "room for growth")
-        log.info("Event type %s not in taxonomy but category %s is known — accepting", event_type, category)
+        log.info("Event type %s not in taxonomy but category %s is known — accepting", _lg(event_type), _lg(category))
     return True, "ok"
 
 
@@ -319,7 +333,7 @@ async def _dispatch_direct(consumer: dict[str, Any], event: dict[str, Any]) -> t
     """Direct action — log, increment metrics, broadcast to ws clients."""
     action = consumer.get("action", "log_event")
     if action == "log_event":
-        log.info("Direct: %s %s %s", event.get("category"), event.get("type"), event.get("correlation_id"))
+        log.info("Direct: %s %s %s", _lg(event.get("category")), _lg(event.get("type")), _lg(event.get("correlation_id")))
         return True, "logged"
     if action == "broadcast_ws":
         await _broadcast_ws(event)
@@ -369,7 +383,7 @@ def schedule_delayed_dispatch(consumer: dict[str, Any], event: dict[str, Any], r
         )
         conn.commit()
         recycled = cur.rowcount > 0
-    log.info("Delayed dispatch %s: bucket=%s due=%s", "rescheduled" if recycled else "scheduled", bucket, due)
+    log.info("Delayed dispatch %s: bucket=%s due=%s", "rescheduled" if recycled else "scheduled", _lg(bucket), _lg(due))
     return bucket
 
 
