@@ -35,7 +35,7 @@ These are the six lines in `requirements.txt`.
 
 | Package | Version | License |
 |---------|---------|---------|
-| `fastapi` | 0.115.6 | MIT |
+| `fastapi` | 0.140.7 | MIT |
 | `httpx` | 0.28.1 | BSD-3-Clause |
 | `jinja2` | 3.1.6 | BSD-3-Clause |
 | `pydantic` | 2.10.4 | MIT |
@@ -66,7 +66,7 @@ adds `httpcore`/`h11`/`certifi`/`idna`/`anyio`/`sniffio`).
 | `markupsafe` | 3.0.3 | BSD-3-Clause |
 | `pydantic-core` | 2.27.2 | MIT |
 | `python-dotenv` | 1.2.2 | BSD-3-Clause |
-| `starlette` | 0.41.3 | BSD-3-Clause |
+| `starlette` | 1.3.1 | BSD-3-Clause |
 | `typing-extensions` | 4.16.0 | PSF-2.0 |
 | `uvloop` | 0.22.1 | MIT |
 | `watchfiles` | 1.2.0 | MIT |
